@@ -32,7 +32,6 @@ public class GameController : MonoBehaviour
     private GameObject appleTree;
     private GameObject orangeTree;
     private GameObject bananaTree;
-    private GameObject menu;
 
     // Start is called before the first frame update
     void Start()
