@@ -1,136 +1,94 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Runtime.Serialization.Formatters.Binary;
-using UnityEditor;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.UI;
-
 
 public class GameController : MonoBehaviour
 {
-    public Button btnPlant;
-    public Button btnDelete;
-    public Button btnMove;
-    public Button btnChangeType;
-    public Button btnSave;
-    public Button btnLoad;
+    
+    public enum eTreeStates
+    {
+        noState,
+        plant,
+        move,
+        delete
+    }
+    public eTreeStates state;    
+    public GameObject cvMenu;
+    public MoveTree movetree;
+
+
     private enum eTrees
     {
         AppleTree,
         OrangeTree,
         BanaTree
     }
-
-    private IState state;
-    private eTrees tree;
-    private GameObject objTree;
-    private bool isMovable;
-    private List<GameObject> lstSaveTree;
-    private List<GameObject> lstTree = new List<GameObject>();
     private GameObject appleTree;
     private GameObject orangeTree;
     private GameObject bananaTree;
+    private SaveData save;
+    private bool isLoad;
+    private int id;
+    private eTrees tree;
+    private GameObject currentTree;
+    private List<GameObject> lstTreeGO = new List<GameObject>();
+    
 
     // Start is called before the first frame update
     void Start()
-    {   
+    {
+        id = 0;
+        isLoad = false;
+        state = eTreeStates.noState;
+        loadPrefabs();
         tree = eTrees.AppleTree;
-        appleTree = Resources.Load<GameObject>("Models/AppleTree"); 
-        orangeTree = Resources.Load<GameObject>("Models/OrangeTree");
-        bananaTree = Resources.Load<GameObject>("Models/BananaTree");
-        objTree = appleTree;
-        lstSaveTree = new List<GameObject>();        
-        initLoad();
-
-        btnPlant.onClick.AddListener(onclickPlants);
-        btnDelete.onClick.AddListener(onclickDelete);
-        btnChangeType.onClick.AddListener(onclickChangeType);
-        btnMove.onClick.AddListener(onclickMove);
-        btnSave.onClick.AddListener(onclickSave);
-        btnLoad.onClick.AddListener(onclickLoad);
-        
-        isMovable = false;
-        Camera.main.GetComponent<MovingTrees>().enabled = isMovable;
+        currentTree = appleTree;                
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (state != null)
+        if (Input.GetMouseButtonDown(0))
         {
-            if (Input.GetMouseButtonUp(0))
+            if (!EventSystem.current.IsPointerOverGameObject())
             {
-                if (!EventSystem.current.IsPointerOverGameObject())
-                {
-                    state.doProcess(this);
-                } else
-                {                    
-                    if (state.GetType() == typeof(LoadState))
-                    {
-                        Debug.Log("Enter load");
-                        state.doProcess(this);
-                        state = null;
-                    }
-                }
-                    
-            }
+                 switch (state)
+                 {
+                    case eTreeStates.noState:                        
+                        break;
+                    case eTreeStates.plant:                        
+                        movetree.enabled = false;
+                        plantAction();
+                        break;
+                    case eTreeStates.move:                        
+                        movetree.enabled = true;
+                        break;
+                    case eTreeStates.delete:                        
+                        movetree.enabled = false;
+                        deleteAction();
+                        break;                 
+                 }
+            }            
         }
-    }    
 
-    public void onclickChangeType()
-    {
-        Debug.Log("change type");
-        state = new ChangePlantState();
-        state.doProcess(this);
-        state = new PlantState();
-    }
-
-    public void onclickDelete()
-    {
-        Debug.Log("delete tree");
-        state = new DeleteState();
-    }
-
-    public void onclickMove()
-    {
-        Debug.Log("move tree");
-        state = new MoveState();
-    }
-
-    public void onclickPlants()
-    {
-        Debug.Log("plant tree");
-        state = new PlantState();
-    }
-    
-    public void onclickSave()
-    {
-        saveAction();
-    }
-
-    public void onclickLoad()
-    {
-        Debug.Log("load tree");
-        state = new LoadState();
+        if (isLoad)
+        {
+            reposition();
+            isLoad = false;
+        }
     }
 
     public void plantAction()
     {
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
         if (Physics.Raycast(ray))
-        Instantiate(objTree, new Vector3(Input.mousePosition.x, Input.mousePosition.y, Input.mousePosition.z), transform.rotation);
-        lstTree.Add(objTree);
-    }
-
-    public void moveAction()
-    {
-        if (!isMovable)
         {
-            isMovable = true;
-            Camera.main.GetComponent<MovingTrees>().enabled = isMovable;
+            GameObject objTree = Instantiate(currentTree, new Vector3(Input.mousePosition.x, 0, Input.mousePosition.z), transform.rotation);
+            id += 1;
+            objTree.GetComponent<Tree>().id = id;
+            lstTreeGO.Add(objTree);
         }
+
     }
 
     public void deleteAction()
@@ -138,107 +96,54 @@ public class GameController : MonoBehaviour
         RaycastHit hitInfo;
         GameObject target = ReturnClickedObject(out hitInfo);
         if (target != null && !target.name.Equals("Floor"))
-        {            
+        {
+            removeTree(target.GetComponent<Tree>().id);
             GameObject.Destroy(target);           
         }
     }
 
     public void changeTypeAction()
-    {
-        if (tree.Equals(eTrees.AppleTree))
+    {        
+        switch (tree)
         {
-            tree = eTrees.BanaTree;
-            objTree = bananaTree;
-            return;
-        }
-        if (tree.Equals(eTrees.BanaTree))
-        {
-            tree = eTrees.OrangeTree;
-            objTree = orangeTree;
-            return;
-        }
-        if (tree.Equals(eTrees.OrangeTree))
-        {
-            tree = eTrees.AppleTree;
-            objTree = appleTree;
-            return;
+            case eTrees.AppleTree:
+                tree = eTrees.BanaTree;
+                currentTree = bananaTree;                
+                return;
+            case eTrees.BanaTree:
+                tree = eTrees.OrangeTree;
+                currentTree = orangeTree;
+                return;
+            case eTrees.OrangeTree:
+                tree = eTrees.AppleTree;
+                currentTree = appleTree;
+                return;
         }
     }
 
     public void saveAction() {
-        Debug.Log("Saving tree");
-        SaveData save = new SaveData();
-        lstSaveTree.Clear();
-        lstSaveTree.AddRange(lstTree);
-
-        foreach (GameObject tree in lstSaveTree)
-        {
-            save.lstType.Add(tree.name);
-            save.lstPosition.Add(tree.transform.position);
-        }
-        string json = JsonUtility.ToJson(save);       
-        string fileName = @"Assets/Resources/Text/SaveData.json";
-        if (File.Exists(fileName))
-        {
-            File.Delete(fileName);
-        }
-        using (StreamWriter sw = File.CreateText(fileName))
-        {
-            Debug.Log(json);
-            sw.WriteLine(json);
-        }
+        SaveData saveData = new SaveData();
+        saveData.lstTreeData.Clear();
+        saveData.lstTreeData.AddRange(getTreeInfoFromTreeGameObject());
+        SaveLoad.saveTreeData(saveData);
+        state = eTreeStates.noState;
     }
 
     public void loadAction()
     {
-        Debug.Log("Loading from json file....");
-        TextAsset jsonData = Resources.Load<TextAsset>("Text/SaveData");
-        
-        if (jsonData != null)
-        {
-            SaveData data = JsonUtility.FromJson<SaveData>(jsonData.text);
-            if (data != null && data.lstPosition != null && data.lstType != null)
-            {               
-                Debug.Log("save tree count " + lstSaveTree.Count);                
-                for (int i = 0; i < lstSaveTree.Count; i++)
-                {
-                   lstSaveTree[i].transform.Translate(data.lstPosition[i]);
-                }              
-            }
-        }
+        save = SaveLoad.loadTreeData(lstTreeGO);        
+        isLoad = true;
+        state = eTreeStates.noState;
     }
 
-    public void initLoad()
+    private void loadPrefabs()
     {
-        Debug.Log("init load");
-        TextAsset jsonData = Resources.Load<TextAsset>("Text/SaveData");
-        if (jsonData != null)
-        {
-            SaveData data = JsonUtility.FromJson<SaveData>(jsonData.text);
-            if (data != null && data.lstPosition.Count != 0)
-            {
-                for (int i = 0; i < data.lstPosition.Count; i++)
-                {
-                    if (data.lstType[i].Contains("AppleTree"))
-                    {
-                        objTree = appleTree;
-                    }
-                    if (data.lstType[i].Contains("OrangeTree"))
-                    {
-                        objTree = orangeTree;
-                    }
-                    if (data.lstType[i].Contains("BananaTree"))
-                    {
-                        objTree = bananaTree;
-                    }
-                    Instantiate(objTree, data.lstPosition[i], transform.rotation);
-                    lstTree.Add(objTree);
-                }
-            }
-        }           
+        appleTree = Resources.Load("Prefabs/Tree/AppleTree") as GameObject;
+        orangeTree = Resources.Load("Prefabs/Tree/OrangeTree") as GameObject;
+        bananaTree = Resources.Load("Prefabs/Tree/BananaTree") as GameObject;
     }
 
-    GameObject ReturnClickedObject(out RaycastHit hit)
+    private GameObject ReturnClickedObject(out RaycastHit hit)
     {
         GameObject target = null;
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
@@ -248,5 +153,52 @@ public class GameController : MonoBehaviour
         }
         return target;
     }
+
+    private void removeTree(int id)
+    {
+        foreach (GameObject tree in lstTreeGO)
+        {
+            if (tree.GetComponent<Tree>().id == id)
+            {                
+                lstTreeGO.Remove(tree);
+                return;
+            }
+        }
+    }
+
+    private List<SaveTreeInfo> getTreeInfoFromTreeGameObject()
+    {
+        List<SaveTreeInfo> lstTree = new List<SaveTreeInfo>();
+        SaveTreeInfo saveTreeInfo; 
+        foreach (GameObject tree in lstTreeGO)
+        {
+            saveTreeInfo = new SaveTreeInfo();
+            saveTreeInfo.id = tree.GetComponent<Tree>().id;
+            saveTreeInfo.position = tree.transform.position; 
+            lstTree.Add(saveTreeInfo);
+        }
+        return lstTree;
+    }
+
+    private void reposition()
+    {
+        if (save != null && save.lstTreeData != null) 
+        {
+            foreach (GameObject t in lstTreeGO)
+            {
+                foreach (SaveTreeInfo saveTreeInfo in save.lstTreeData)
+                {
+                    if (t.GetComponent<Tree>().id == saveTreeInfo.id) 
+                    {
+                        Debug.Log("reposition " + saveTreeInfo.position.x + " , " + saveTreeInfo.position.y + " , " + saveTreeInfo.position.z);
+                        t.transform.position = saveTreeInfo.position;
+                        break;
+                    }                        
+                }
+            }
+        }
+    }
+
+
 
 }

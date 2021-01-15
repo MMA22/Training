@@ -1,10 +1,15 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 [System.Serializable]
-public class SaveData 
+public class SaveData
 {
-    public List<string> lstType = new List<string>();
-    public List<Vector3> lstPosition = new List<Vector3>();
+    public List<SaveTreeInfo> lstTreeData = new List<SaveTreeInfo>();    
+}
+
+[System.Serializable]
+public class SaveTreeInfo
+{
+    public int id;
+    public Vector3 position; 
 }
