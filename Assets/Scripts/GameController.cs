@@ -14,8 +14,6 @@ public class GameController : MonoBehaviour
     }
     public eTreeStates state;    
     public GameObject cvMenu;
-    public MoveTree movetree;
-
 
     private enum eTrees
     {
@@ -28,17 +26,23 @@ public class GameController : MonoBehaviour
     private GameObject bananaTree;
     private SaveData save;
     private bool isLoad;
+    private bool isMovable;
     private int id;
     private eTrees tree;
     private GameObject currentTree;
     private List<GameObject> lstTreeGO = new List<GameObject>();
-    
+    private GameObject moveTarget;
+    private bool isMouseDragging;
+    private Vector3 screenPosition;
+    private Vector3 offset;
+
 
     // Start is called before the first frame update
     void Start()
     {
         id = 0;
         isLoad = false;
+        isMovable = false;
         state = eTreeStates.noState;
         loadPrefabs();
         tree = eTrees.AppleTree;
@@ -57,18 +61,35 @@ public class GameController : MonoBehaviour
                     case eTreeStates.noState:                        
                         break;
                     case eTreeStates.plant:                        
-                        movetree.enabled = false;
+                        isMovable = false;
                         plantAction();
                         break;
                     case eTreeStates.move:                        
-                        movetree.enabled = true;
+                        isMovable = true;
+                        moveAction();
                         break;
-                    case eTreeStates.delete:                        
-                        movetree.enabled = false;
+                    case eTreeStates.delete:
+                        isMovable = false;
                         deleteAction();
                         break;                 
                  }
             }            
+        }
+
+        if (Input.GetMouseButtonUp(0) && isMovable)
+        {
+            isMouseDragging = false;
+        }
+
+        if (isMouseDragging && isMovable)
+        {
+            Vector3 currentScreenSpace = new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPosition.z);
+            Vector3 currentPosition = Camera.main.ScreenToWorldPoint(currentScreenSpace) + offset;
+            if (moveTarget != null)
+            {
+                moveTarget.transform.position = new Vector3(currentPosition.x, 0, currentPosition.z);
+            }
+
         }
 
         if (isLoad)
@@ -81,21 +102,38 @@ public class GameController : MonoBehaviour
     public void plantAction()
     {
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray))
-        {
-            GameObject objTree = Instantiate(currentTree, new Vector3(Input.mousePosition.x, 0, Input.mousePosition.z), transform.rotation);
-            id += 1;
-            objTree.GetComponent<Tree>().id = id;
-            lstTreeGO.Add(objTree);
-        }
+        RaycastHit hit;
 
+        if (Physics.Raycast(ray, out hit, 100))
+        {
+            if (hit.collider.tag.Equals("ground"))
+            {
+                Debug.Log(hit.point);
+                GameObject objTree = Instantiate(currentTree, hit.point, Quaternion.identity);
+                id += 1;
+                objTree.GetComponent<Tree>().id = id;
+                lstTreeGO.Add(objTree);
+            }
+        }
+    }
+
+    public void moveAction()
+    {
+        RaycastHit hitInfo;
+        moveTarget = ReturnClickedObject(out hitInfo);
+        if (moveTarget != null && !moveTarget.name.Equals("Floor"))
+        {
+            isMouseDragging = true;
+            screenPosition = Camera.main.WorldToScreenPoint(moveTarget.transform.position);
+            offset = moveTarget.transform.position - Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPosition.z));
+        }
     }
 
     public void deleteAction()
     {
         RaycastHit hitInfo;
         GameObject target = ReturnClickedObject(out hitInfo);
-        if (target != null && !target.name.Equals("Floor"))
+        if (target != null && !target.tag.Equals("ground"))
         {
             removeTree(target.GetComponent<Tree>().id);
             GameObject.Destroy(target);           
@@ -131,11 +169,10 @@ public class GameController : MonoBehaviour
 
     public void loadAction()
     {
-        save = SaveLoad.loadTreeData(lstTreeGO);        
+        save = SaveLoad.loadTreeData(lstTreeGO);
         isLoad = true;
         state = eTreeStates.noState;
     }
-
     private void loadPrefabs()
     {
         appleTree = Resources.Load("Prefabs/Tree/AppleTree") as GameObject;
