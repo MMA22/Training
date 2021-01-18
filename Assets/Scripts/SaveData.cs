@@ -11,5 +11,6 @@ public class SaveData
 public class SaveTreeInfo
 {
     public int id;
+    public string type;
     public Vector3 position; 
 }

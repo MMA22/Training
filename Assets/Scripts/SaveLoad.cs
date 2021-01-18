@@ -18,18 +18,22 @@ public class SaveLoad
         File.WriteAllText(fileName, json);               
     }
 
-    public static SaveData loadTreeData(List<GameObject> lstTreeGO)
+    public static SaveData loadTreeData()
     {
         Debug.Log("Loading from json file....");
         string fileName = Application.dataPath + "/Resources/Text/SaveData.text";
-        string saveString = File.ReadAllText(fileName);
-        Debug.Log("load " + saveString);
-        SaveData data = JsonUtility.FromJson<SaveData>(saveString);
-        foreach (SaveTreeInfo stree in data.lstTreeData)
+        if (File.Exists(fileName))
         {
-            Debug.Log("id " + stree.id + ", position " + stree.position);
+            string saveString = File.ReadAllText(fileName);
+            Debug.Log("load " + saveString);
+            SaveData data = JsonUtility.FromJson<SaveData>(saveString);
+            foreach (SaveTreeInfo stree in data.lstTreeData)
+            {
+                Debug.Log("id " + stree.id + " , type " + stree.type + " , position " + stree.position);
+            }
+            return data;
         }
-        return data;        
+        return null;   
     }
     
 }

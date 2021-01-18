@@ -12,15 +12,16 @@ public class GameController : MonoBehaviour
         move,
         delete
     }
-    public eTreeStates state;    
-    public GameObject cvMenu;
-
-    private enum eTrees
+    public eTreeStates state;
+    public enum eTrees
     {
         AppleTree,
         OrangeTree,
-        BanaTree
+        BananaTree
     }
+    public eTrees tree;
+    public GameObject cvMenu;
+
     private GameObject appleTree;
     private GameObject orangeTree;
     private GameObject bananaTree;
@@ -28,14 +29,12 @@ public class GameController : MonoBehaviour
     private bool isLoad;
     private bool isMovable;
     private int id;
-    private eTrees tree;
-    private GameObject currentTree;
-    private List<GameObject> lstTreeGO = new List<GameObject>();
-    private GameObject moveTarget;
-    private bool isMouseDragging;
-    private Vector3 screenPosition;
-    private Vector3 offset;
 
+    private string treeType;
+    private GameObject currentTree;
+    private List<GameObject> lstTreeGO;
+    private GameObject moveTarget = null;
+    private bool isMouseDragging;
 
     // Start is called before the first frame update
     void Start()
@@ -44,7 +43,7 @@ public class GameController : MonoBehaviour
         isLoad = false;
         isMovable = false;
         state = eTreeStates.noState;
-        loadPrefabs();
+        loadData();
         tree = eTrees.AppleTree;
         currentTree = appleTree;                
     }
@@ -79,22 +78,31 @@ public class GameController : MonoBehaviour
         if (Input.GetMouseButtonUp(0) && isMovable)
         {
             isMouseDragging = false;
+            if (moveTarget != null)
+            {
+                moveTarget.GetComponent<Collider>().enabled = true;
+            }            
         }
 
         if (isMouseDragging && isMovable)
         {
-            Vector3 currentScreenSpace = new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPosition.z);
-            Vector3 currentPosition = Camera.main.ScreenToWorldPoint(currentScreenSpace) + offset;
             if (moveTarget != null)
             {
-                moveTarget.transform.position = new Vector3(currentPosition.x, 0, currentPosition.z);
-            }
+                moveTarget.GetComponent<Collider>().enabled = false;
+                Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+                RaycastHit hit;
 
+                if (Physics.Raycast(ray, out hit, 200))
+                {
+                    isMouseDragging = true;
+                    moveTarget.transform.position = new Vector3(hit.point.x, 0, hit.point.z);
+                }                
+            }
         }
 
         if (isLoad)
         {
-            reposition();
+            loadTreePlant();
             isLoad = false;
         }
     }
@@ -104,14 +112,14 @@ public class GameController : MonoBehaviour
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, 100))
+        if (Physics.Raycast(ray, out hit, 200))
         {
             if (hit.collider.tag.Equals("ground"))
             {
-                Debug.Log(hit.point);
                 GameObject objTree = Instantiate(currentTree, hit.point, Quaternion.identity);
                 id += 1;
                 objTree.GetComponent<Tree>().id = id;
+                objTree.GetComponent<Tree>().type = tree.ToString("g");
                 lstTreeGO.Add(objTree);
             }
         }
@@ -119,13 +127,16 @@ public class GameController : MonoBehaviour
 
     public void moveAction()
     {
-        RaycastHit hitInfo;
-        moveTarget = ReturnClickedObject(out hitInfo);
-        if (moveTarget != null && !moveTarget.name.Equals("Floor"))
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, 200))
         {
-            isMouseDragging = true;
-            screenPosition = Camera.main.WorldToScreenPoint(moveTarget.transform.position);
-            offset = moveTarget.transform.position - Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPosition.z));
+            if (hit.collider.tag.Equals("Tree"))
+            {
+                isMouseDragging = true;                
+                moveTarget = hit.collider.gameObject;                
+            }
         }
     }
 
@@ -145,10 +156,10 @@ public class GameController : MonoBehaviour
         switch (tree)
         {
             case eTrees.AppleTree:
-                tree = eTrees.BanaTree;
+                tree = eTrees.BananaTree;
                 currentTree = bananaTree;                
                 return;
-            case eTrees.BanaTree:
+            case eTrees.BananaTree:
                 tree = eTrees.OrangeTree;
                 currentTree = orangeTree;
                 return;
@@ -169,15 +180,18 @@ public class GameController : MonoBehaviour
 
     public void loadAction()
     {
-        save = SaveLoad.loadTreeData(lstTreeGO);
+        save = SaveLoad.loadTreeData();
         isLoad = true;
         state = eTreeStates.noState;
     }
-    private void loadPrefabs()
+    private void loadData()
     {
         appleTree = Resources.Load("Prefabs/Tree/AppleTree") as GameObject;
         orangeTree = Resources.Load("Prefabs/Tree/OrangeTree") as GameObject;
         bananaTree = Resources.Load("Prefabs/Tree/BananaTree") as GameObject;
+        lstTreeGO = new List<GameObject>();
+        save = SaveLoad.loadTreeData();
+        loadTreePlant();
     }
 
     private GameObject ReturnClickedObject(out RaycastHit hit)
@@ -196,7 +210,8 @@ public class GameController : MonoBehaviour
         foreach (GameObject tree in lstTreeGO)
         {
             if (tree.GetComponent<Tree>().id == id)
-            {                
+            {
+                Destroy(tree);
                 lstTreeGO.Remove(tree);
                 return;
             }
@@ -211,27 +226,40 @@ public class GameController : MonoBehaviour
         {
             saveTreeInfo = new SaveTreeInfo();
             saveTreeInfo.id = tree.GetComponent<Tree>().id;
+            saveTreeInfo.type = tree.GetComponent<Tree>().type;
             saveTreeInfo.position = tree.transform.position; 
             lstTree.Add(saveTreeInfo);
         }
         return lstTree;
     }
 
-    private void reposition()
+    private void loadTreePlant()
     {
+        foreach (GameObject tree in lstTreeGO)
+        {
+            Destroy(tree);
+        }
+        lstTreeGO.Clear();
+
         if (save != null && save.lstTreeData != null) 
         {
-            foreach (GameObject t in lstTreeGO)
+            GameObject plantTree = null;
+            foreach (SaveTreeInfo saveTreeInfo in save.lstTreeData)
             {
-                foreach (SaveTreeInfo saveTreeInfo in save.lstTreeData)
-                {
-                    if (t.GetComponent<Tree>().id == saveTreeInfo.id) 
-                    {
-                        Debug.Log("reposition " + saveTreeInfo.position.x + " , " + saveTreeInfo.position.y + " , " + saveTreeInfo.position.z);
-                        t.transform.position = saveTreeInfo.position;
-                        break;
-                    }                        
+                if (saveTreeInfo.type.Equals("AppleTree")) {
+                    plantTree = appleTree;
                 }
+                if (saveTreeInfo.type.Equals("OrangeTree")) {
+                    plantTree = orangeTree;
+                }
+                if (saveTreeInfo.type.Equals("BananaTree")) {
+                    plantTree = bananaTree;
+                }
+                GameObject objTree = Instantiate(plantTree, saveTreeInfo.position, Quaternion.identity);
+                id += 1;
+                objTree.GetComponent<Tree>().id = id;
+                objTree.GetComponent<Tree>().type = saveTreeInfo.type;
+                lstTreeGO.Add(objTree);                
             }
         }
     }
